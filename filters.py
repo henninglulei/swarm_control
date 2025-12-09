@@ -21,6 +21,7 @@ class NoOpFilter(BaseFilter):
         return measurement
 
 
+# This MA filter is equivalent to the MLE when the noise is constant
 class MovingAverageFilter(BaseFilter):
     def __init__(self, window_size: int):
         if window_size <= 0:
@@ -32,7 +33,7 @@ class MovingAverageFilter(BaseFilter):
         self.history.clear()
 
     def update(self, measurement: np.ndarray) -> np.ndarray:
-        self.history.append(np.asarray(measurement))
+        self.history.append(measurement)
         
         # history has shape (window_size, num_agents, dim)
         # Mean should be over axis 0
@@ -40,3 +41,55 @@ class MovingAverageFilter(BaseFilter):
     
     def copy(self) -> 'MovingAverageFilter':
         return MovingAverageFilter(self.window_size)
+    
+
+# RLS filter with forgetting factor < 1
+class RecursiveLeastSquaresFilter(BaseFilter):
+    def __init__(self, forgetting_factor: float, window_size: int, alpha: float, noise_covariance: np.ndarray):
+        self.dimension = noise_covariance.shape[0]
+        
+        self.forgetting_factor = forgetting_factor
+        self.window_size = window_size
+        
+        self.measurement_history = deque(maxlen=self.window_size)
+        self.filtered_history = deque(maxlen=self.window_size)
+        
+        self.noise_covariance = noise_covariance
+        self.alpha = alpha
+        self.uncertainty_covariance = None
+        
+    def reset(self) -> None:
+        self.measurement_history.clear()
+        self.filtered_history.clear()
+        self.uncertainty_covariance = None
+        
+    def update(self, measurement: np.ndarray) -> np.ndarray:
+        self.measurement_history.append(measurement)
+        
+        if self.uncertainty_covariance is None:
+            # This is the first incoming measurement
+            self.filtered_history.append(np.zeros_like(measurement))
+            self.uncertainty_covariance = np.tile(np.eye(self.dimension) * self.alpha, (measurement.shape[0], 1, 1))
+        
+        filtered_measurement = np.zeros_like(measurement)
+        
+        for i in range(measurement.shape[0]):        
+            innovation_covariance = self.uncertainty_covariance[i] + self.noise_covariance
+            gain = self.uncertainty_covariance[i] @ np.linalg.inv(innovation_covariance)
+            
+            innovation = measurement[i] - self.filtered_history[-1][i]
+            filtered_measurement[i] = self.filtered_history[-1][i] + gain @ innovation
+            
+            self.uncertainty_covariance[i] = 1 / self.forgetting_factor * ((np.eye(self.dimension) - gain) @ self.uncertainty_covariance[i])
+            
+        self.filtered_history.append(filtered_measurement)
+        
+        return filtered_measurement
+    
+    def copy(self) -> 'RecursiveLeastSquaresFilter':
+        return RecursiveLeastSquaresFilter(
+            forgetting_factor=self.forgetting_factor,
+            window_size=self.window_size,
+            alpha=self.alpha,
+            noise_covariance=self.noise_covariance
+        )
