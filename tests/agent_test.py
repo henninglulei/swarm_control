@@ -12,7 +12,7 @@ def test_measure_shape_and_self_zero():
     a0 = Agent(0, [0,0], [0,0], filter=NoOpFilter())
     a1 = Agent(1, [1,0], [0,0], filter=NoOpFilter())
     a2 = Agent(2, [0,1], [0,0], filter=NoOpFilter())
-    meas = a0.measure([a0,a1,a2], noise_covariance=np.zeros((2,2)), rng=rng, use_noise=True)
+    meas = a0.measure([a0,a1,a2], noise_covariance=np.zeros((2,2)), rng=rng)
     assert meas.shape == (3,2)
     np.testing.assert_allclose(meas[0], [0,0])  # self row
     np.testing.assert_allclose(meas[1], [-1,0])

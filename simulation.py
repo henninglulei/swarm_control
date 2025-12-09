@@ -22,13 +22,18 @@ class Simulation:
         self.timestep = 0
     
     def _step(self) -> None:
+        positions = np.array([agent.position for agent in self.agents])       
+        
         for agent in self.agents:
+            measurements = agent.position - positions
             
-            agent.measure(self.agents, self.config.noise_covariance, self.rng)
+            agent.apply_noise(self.config.noise_covariance, self.rng, measurements)
+            # agent.measure(self.agents, self.config.noise_covariance, self.rng)
             agent.apply_filter()
             agent.update_position(self.laplacian_weights, self.config.dt)
 
             self.error_history[self.timestep] += np.linalg.norm(agent.position - agent.target_position) ** 2
+        
         self.timestep += 1
     
     def run(self, num_steps: int) -> Dict[str, Any]:
