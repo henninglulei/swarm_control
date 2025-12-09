@@ -17,7 +17,7 @@ class Agent:
         self._last_measurement_raw = None
         self._last_measurement_filtered = None
 
-    def measure(self, agents, noise_covariance, rng, use_noise=True):
+    def measure(self, agents, noise_covariance, rng):
         """Simulate noisy distance measurements to other agents."""
         num_agents = len(agents)
         dim = agents[0].position.shape[0]
@@ -26,14 +26,20 @@ class Agent:
             if agent is not self:
                 distance = self.position - agent.position
                 noise = rng.multivariate_normal(mean=np.zeros(distance.shape[0]), cov=noise_covariance)
-                measurements[i, :] = distance + noise if use_noise else distance
+                measurements[i, :] = distance + noise
 
         self._last_measurement_raw = measurements
         return measurements
     
+    def apply_noise(self, noise_covariance, rng, measurement):
+        num_agents, dim = measurement.shape
+        noise = rng.multivariate_normal(mean=np.zeros(dim), cov=noise_covariance, size=num_agents)
+        self._last_measurement_raw = measurement + noise
+        return self._last_measurement_raw
+    
     def apply_filter(self):
         if self._last_measurement_raw is None:
-            raise RuntimeError("measure must be called before apply_filter")
+            raise RuntimeError("measure or apply_noise must be called before apply_filter")
 
         self._last_measurement_filtered = self.filter.update(self._last_measurement_raw)
     
