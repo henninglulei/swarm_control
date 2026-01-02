@@ -10,6 +10,7 @@ class SimulationConfig:
     filter: BaseFilter
     desc: str
     dt: float
+    T: int  # Number of independent measurements per iteration
 
 
 class Simulation:
@@ -22,13 +23,33 @@ class Simulation:
         self.timestep = 0
     
     def _step(self) -> None:
-        positions = np.array([agent.position for agent in self.agents])       
+        positions = np.array([agent.position for agent in self.agents])
+        num_agents = len(self.agents)
+        dim = positions.shape[1]
         
-        for agent in self.agents:
-            measurements = agent.position - positions
+        # Generate T noisy measurements
+        T_measurements = []
+        real_distances = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
+        for _ in range(self.config.T):
+            # Batch generate all noise at once: (num_agents * num_agents, dim) -> reshape to (num_agents, num_agents, dim)
+            all_noise = self.rng.multivariate_normal(
+                mean=np.zeros(dim), 
+                cov=self.config.noise_covariance, 
+                size=num_agents * num_agents
+            ).reshape(num_agents, num_agents, dim)
+
+            # TODO: Set the diagonal to zero noise
             
-            agent.apply_noise(self.config.noise_covariance, self.rng, measurements)
-            # agent.measure(self.agents, self.config.noise_covariance, self.rng)
+            T_measurements.append(real_distances + all_noise)
+
+        
+        self.last_controls = np.zeros_like(positions)
+        for agent_idx, agent in enumerate(self.agents):
+            # Extract this agent's measurements across all T repetitions
+            # T_measurements is list of T arrays, each shape (num_agents, num_agents, dim)
+            # We want agent_idx's view: list of T arrays, each shape (num_agents, dim)
+            agent_T_measurements = [T_measurements[t][agent_idx] for t in range(self.config.T)]
+            agent._last_T_measurements_raw = agent_T_measurements
             agent.apply_filter()
             agent.update_position(self.laplacian_weights, self.config.dt)
 

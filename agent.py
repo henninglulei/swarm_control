@@ -14,34 +14,14 @@ class Agent:
         self.filter = filter.copy()
         self.filter.reset()
 
-        self._last_measurement_raw = None
+        self._last_T_measurements_raw = None
         self._last_measurement_filtered = None
-
-    def measure(self, agents, noise_covariance, rng):
-        """Simulate noisy distance measurements to other agents."""
-        num_agents = len(agents)
-        dim = agents[0].position.shape[0]
-        measurements = np.zeros((num_agents, dim))
-        for i, agent in enumerate(agents):
-            if agent is not self:
-                distance = self.position - agent.position
-                noise = rng.multivariate_normal(mean=np.zeros(distance.shape[0]), cov=noise_covariance)
-                measurements[i, :] = distance + noise
-
-        self._last_measurement_raw = measurements
-        return measurements
-    
-    def apply_noise(self, noise_covariance, rng, measurement):
-        num_agents, dim = measurement.shape
-        noise = rng.multivariate_normal(mean=np.zeros(dim), cov=noise_covariance, size=num_agents)
-        self._last_measurement_raw = measurement + noise
-        return self._last_measurement_raw
     
     def apply_filter(self):
-        if self._last_measurement_raw is None:
+        if self._last_T_measurements_raw is None:
             raise RuntimeError("measure or apply_noise must be called before apply_filter")
 
-        self._last_measurement_filtered = self.filter.update(self._last_measurement_raw)
+        self._last_measurement_filtered = self.filter.update(self._last_T_measurements_raw)
     
     def update_position(self, laplacian_weights, dt):
         if self._last_measurement_filtered is None:
@@ -53,7 +33,6 @@ class Agent:
                 adjustment += laplacian_weights[self.id][agent_id] * self._last_measurement_filtered[agent_id]
             
             self.position += adjustment * dt
-            
 
     def __str__(self):
         return f"Agent {self.id} at position {self.position}"
