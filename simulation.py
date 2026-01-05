@@ -31,7 +31,7 @@ class Simulation:
         T_measurements = []
         real_distances = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]
         for _ in range(self.config.T):
-            # Batch generate all noise at once: (num_agents * num_agents, dim) -> reshape to (num_agents, num_agents, dim)
+            # Batch generate all noise at once
             all_noise = self.rng.multivariate_normal(
                 mean=np.zeros(dim), 
                 cov=self.config.noise_covariance, 
@@ -45,9 +45,6 @@ class Simulation:
         
         self.last_controls = np.zeros_like(positions)
         for agent_idx, agent in enumerate(self.agents):
-            # Extract this agent's measurements across all T repetitions
-            # T_measurements is list of T arrays, each shape (num_agents, num_agents, dim)
-            # We want agent_idx's view: list of T arrays, each shape (num_agents, dim)
             agent_T_measurements = [T_measurements[t][agent_idx] for t in range(self.config.T)]
             agent._last_T_measurements_raw = agent_T_measurements
             agent.apply_filter()
